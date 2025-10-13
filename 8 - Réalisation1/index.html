@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Application de gestion des tâches</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+      display: flex;
+      justify-content: center;
+      padding: 50px;
+    }
+
+    .container {
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      width: 380px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+
+    h1 {
+      text-align: center;
+    }
+
+    form {
+      display: flex;
+      margin-bottom: 10px;
+    }
+
+    input {
+      flex: 1;
+      padding: 8px;
+    }
+
+    button {
+      padding: 8px 12px;
+      margin-left: 5px;
+      cursor: pointer;
+    }
+
+    #compteurTaches {
+      margin-bottom: 10px;
+      font-weight: bold;
+    }
+
+    #filtre {
+      width: 100%;
+      padding: 6px;
+      margin-bottom: 10px;
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    li {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 0;
+      border-bottom: 1px solid #ddd;
+    }
+
+    li span.completed {
+      text-decoration: line-through;
+      color: gray;
+    }
+
+    #supprimerCompletes {
+      margin-top: 10px;
+      width: 100%;
+      background-color: #ff4d4d;
+      color: white;
+      border: none;
+      cursor: pointer;
+      padding: 8px;
+      border-radius: 4px;
+    }
+
+    #supprimerCompletes:hover {
+      background-color: #ff1a1a;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Liste de tâches</h1>
+
+    <form id="formTache">
+      <input type="text" id="inputTache" placeholder="Écrivez la tâche ici..." required>
+      <button type="submit">Ajouter</button>
+    </form>
+
+    <div id="compteurTaches">
+      <span id="total">0</span> tâches, 
+      <span id="completed">0</span> complétées
+    </div>
+
+    <select id="filtre">
+      <option value="all">Toutes les tâches</option>
+      <option value="completed">Complétées seulement</option>
+      <option value="incomplete">Non complétées seulement</option>
+    </select>
+
+    <button id="supprimerCompletes">Supprimer les tâches complétées</button>
+
+    <ul id="listeTaches"></ul>
+  </div>
+
+  <script>
+    const formTache = document.getElementById('formTache');
+    const inputTache = document.getElementById('inputTache');
+    const listeTaches = document.getElementById('listeTaches');
+    const totalSpan = document.getElementById('total');
+    const completedSpan = document.getElementById('completed');
+    const supprimerCompletesBtn = document.getElementById('supprimerCompletes');
+    const filtreSelect = document.getElementById('filtre');
+
+    let taches = JSON.parse(localStorage.getItem('taches')) || [];
+
+    function saveAndRender() {
+      localStorage.setItem('taches', JSON.stringify(taches));
+      renderTaches();
+      updateCompteur();
+    }
+
+    function renderTaches() {
+      listeTaches.innerHTML = '';
+
+      let tachesFiltrees = taches;
+      const filtre = filtreSelect.value;
+      if(filtre === 'completed') tachesFiltrees = taches.filter(t => t.completed);
+      else if(filtre === 'incomplete') tachesFiltrees = taches.filter(t => !t.completed);
+
+      tachesFiltrees.forEach(t => {
+        const li = document.createElement('li');
+        li.setAttribute('draggable', true);
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = t.completed;
+        checkbox.addEventListener('change', () => toggleTache(taches.indexOf(t)));
+
+        const span = document.createElement('span');
+        span.textContent = t.text;
+        if(t.completed) span.classList.add('completed');
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.textContent = 'Supprimer';
+        deleteBtn.addEventListener('click', () => deleteTache(taches.indexOf(t)));
+
+        li.appendChild(checkbox);
+        li.appendChild(span);
+        li.appendChild(deleteBtn);
+        listeTaches.appendChild(li);
+      });
+    }
+
+    function updateCompteur() {
+      totalSpan.textContent = taches.length;
+      completedSpan.textContent = taches.filter(t => t.completed).length;
+    }
+
+    function toggleTache(index) {
+      taches[index].completed = !taches[index].completed;
+      saveAndRender();
+    }
+
+    function deleteTache(index) {
+      taches.splice(index, 1);
+      saveAndRender();
+    }
+
+    formTache.addEventListener('submit', e => {
+      e.preventDefault();
+      taches.push({ text: inputTache.value, completed: false });
+      inputTache.value = '';
+      saveAndRender();
+    });
+
+    supprimerCompletesBtn.addEventListener('click', () => {
+      taches = taches.filter(t => !t.completed);
+      saveAndRender();
+    });
+
+    filtreSelect.addEventListener('change', renderTaches);
+
+    // Drag & Drop
+    let draggedIndex = null;
+
+    listeTaches.addEventListener('dragstart', (e) => {
+      if(e.target.tagName === 'LI') {
+        draggedIndex = Array.from(listeTaches.children).indexOf(e.target);
+        e.dataTransfer.effectAllowed = 'move';
+      }
+    });
+
+    listeTaches.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    });
+
+    listeTaches.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const target = e.target.closest('li');
+      if(!target || draggedIndex === null) return;
+
+      const droppedIndex = Array.from(listeTaches.children).indexOf(target);
+      const movedTache = taches.splice(draggedIndex, 1)[0];
+      taches.splice(droppedIndex, 0, movedTache);
+
+      saveAndRender();
+      draggedIndex = null;
+    });
+
+    saveAndRender();
+  </script>
+</body>
+</html>
